@@ -1,0 +1,75 @@
+{
+  "name": "Yorgánica Presencia",
+  "short_name": "Presencia",
+  "description": "Tu espacio para meditar, registrar y observar tu práctica.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf8f2",
+  "theme_color": "#f5f0e7",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Meditación libre",
+      "short_name": "Libre ∞",
+      "url": "./?timer=free",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Meditar 5 minutos",
+      "short_name": "5 min",
+      "url": "./?timer=5",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Meditar 10 minutos",
+      "short_name": "10 min",
+      "url": "./?timer=10",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Meditar 20 minutos",
+      "short_name": "20 min",
+      "url": "./?timer=20",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
