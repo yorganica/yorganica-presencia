@@ -26,37 +26,47 @@ $("custom-minutes").addEventListener("change",()=>{const n=Number($("custom-minu
 function currentElapsed(){return elapsed+(active&&!paused?(Date.now()-startedAt)/1000:0)}
 function updateClock(){const seconds=active?(free?currentElapsed():selected*60-currentElapsed()):free?0:selected*60;$("clock").textContent=fmt(seconds);$("timer-label").textContent=active?(paused?t("paused"):free?t("elapsed"):t("here")):t("forPractice")}
 function updateButtons(){$("start").disabled=active;$("pause").disabled=!active;$("finish").disabled=!active;$("pause").textContent=paused?t("resume"):t("pause");$("countup").disabled=active;$("custom-minutes").disabled=active;renderDurations();updateClock()}
-// Sonidos originales generados con Web Audio: no se utilizan grabaciones de terceros.
+// Sonidos originales sintetizados localmente. En iOS, reanudar AudioContext
+// debe hacerse como resultado directo del toque del usuario.
 let audioContext=null;
-function chime(){
- if(!$('bell').checked)return;
- playSound($('sound').value);
-}
-function playSound(kind){
+let audioReady=false;
+async function ensureAudio(){
+ const C=window.AudioContext||window.webkitAudioContext;
+ if(!C) return null;
  try{
-  const C=window.AudioContext||window.webkitAudioContext;if(!C)return;
-  if(!audioContext)audioContext=new C();
-  const ctx=audioContext;ctx.resume();const now=ctx.currentTime+.015;
-  const voice=(freq,start,duration,volume,decay,type='sine')=>{
-   const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type=type;osc.frequency.setValueAtTime(freq,start);
-   gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume),start+.02);
-   gain.gain.exponentialRampToValueAtTime(.0001,start+Math.min(duration,decay));
-   osc.connect(gain);gain.connect(ctx.destination);osc.start(start);osc.stop(start+duration+.03);
-  };
-  if(kind==='bowl'){
-   [[220,.11],[440,.045],[661,.018],[883,.01],[1103,.007]].forEach(([f,v])=>voice(f,now,5,v,4.9));
-  }else if(kind==='gong'){
-   [[110,.075],[162,.055],[228,.045],[315,.025],[421,.02],[577,.012]].forEach(([f,v],j)=>voice(f,now+j*.014,6,v,5.8,'sine'));
-  }else if(kind==='chime'){
-   [784,988,1175].forEach((f,j)=>voice(f,now+j*.22,2.7,.075,2.5));
-  }else{voice(660,now,1.85,.13,1.8)}
- }catch(e){console.warn('Audio unavailable',e)}
+  if(!audioContext||audioContext.state==='closed')audioContext=new C();
+  const ctx=audioContext;
+  // El nodo silencioso permite desbloquear la salida en Safari/iOS.
+  const buffer=ctx.createBuffer(1,1,ctx.sampleRate);
+  const source=ctx.createBufferSource();source.buffer=buffer;source.connect(ctx.destination);source.start(0);
+  if(ctx.state!=='running')await ctx.resume();
+  audioReady=ctx.state==='running';
+  return audioReady?ctx:null;
+ }catch(err){console.warn('Audio initialization unavailable',err);return null}
 }
-$('preview-sound').onclick=()=>playSound($('sound').value);
+function synthSound(ctx,kind){
+ const now=ctx.currentTime+.04;
+ const voice=(freq,start,duration,volume,decay,type='sine')=>{
+  const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type=type;osc.frequency.setValueAtTime(freq,start);
+  gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume),start+.035);
+  gain.gain.exponentialRampToValueAtTime(.0001,start+Math.min(duration,decay));
+  osc.connect(gain);gain.connect(ctx.destination);osc.start(start);osc.stop(start+duration+.05);
+ };
+ if(kind==='bowl')[[220,.18],[440,.07],[661,.03],[883,.016],[1103,.012]].forEach(([f,v])=>voice(f,now,5,v,4.9));
+ else if(kind==='gong')[[110,.13],[162,.09],[228,.07],[315,.04],[421,.03],[577,.018]].forEach(([f,v],j)=>voice(f,now+j*.014,6,v,5.8));
+ else if(kind==='chime')[784,988,1175].forEach((f,j)=>voice(f,now+j*.22,2.7,.13,2.5));
+ else voice(660,now,1.85,.22,1.8);
+}
+async function playSound(kind,report=false){
+ const ctx=await ensureAudio();
+ if(!ctx){if(report)toast(t('audioUnavailable')==='audioUnavailable'?'No se pudo activar el audio. Revisa el volumen y vuelve a tocar Escuchar.':t('audioUnavailable'));return false}
+ try{synthSound(ctx,kind);return true}catch(err){console.warn('Audio playback unavailable',err);if(report)toast(t('audioUnavailable')==='audioUnavailable'?'No se pudo reproducir el sonido.':t('audioUnavailable'));return false}
+}
+function chime(){if($('bell').checked)void playSound($('sound').value)}
+$('preview-sound').addEventListener('click',()=>{void playSound($('sound').value,true)});
 $('sound').value=localStorage.getItem('presencia-sound')||'bell';
 $('sound').onchange=e=>localStorage.setItem('presencia-sound',e.target.value);
-
-function begin(){if(active)return;free=$("countup").checked;active=true;paused=false;elapsed=0;startedAt=Date.now();chime();tick=setInterval(()=>{if(!active||paused)return;if(!free&&currentElapsed()>=selected*60){elapsed=selected*60;end(true)}else updateClock()},250);updateButtons();saveSession()}
+function begin(){if(active)return;void ensureAudio();free=$("countup").checked;active=true;paused=false;elapsed=0;startedAt=Date.now();chime();tick=setInterval(()=>{if(!active||paused)return;if(!free&&currentElapsed()>=selected*60){elapsed=selected*60;end(true)}else updateClock()},250);updateButtons();saveSession()}
 function pause(){if(!active)return;if(paused){startedAt=Date.now();paused=false}else{elapsed=currentElapsed();paused=true}updateButtons();saveSession()}
 function end(completed=false){if(!active)return;const sec=completed?selected*60:currentElapsed();clearInterval(tick);active=false;paused=false;saveSession();updateButtons();if(completed)chime();const minutes=Math.max(1,Math.round(sec/60));$("entry-date").value=dateKey();$("entry-minutes").value=minutes;$("entry-type").value=$("practice").value;changeTab("diario");toast(t("finishedToast"));}
 $("start").onclick=begin;$("pause").onclick=pause;$("finish").onclick=()=>end(false);
